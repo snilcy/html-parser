@@ -1,0 +1,20 @@
+{
+  "env": {
+    "es2021": true,
+    "node": true,
+    "browser": true
+  },
+  "globals": {
+    "logger": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": ["@snilcy/eslint-config/node", "@snilcy/eslint-config/prettier"],
+  "rules": {
+    "node/file-extension-in-import": 0
+  }
+}
