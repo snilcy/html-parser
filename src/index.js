@@ -3,6 +3,8 @@ import path from "node:path";
 import { Logger, ConsoleDirection } from "@snilcy/logger";
 import { last, lastIndex, updateById } from "@snilcy/cake";
 
+// TODO: Add self close tags
+
 const log = new Logger({
   directions: [
     new ConsoleDirection({
@@ -10,12 +12,11 @@ const log = new Logger({
       undefined: false,
       excludeKeys: [
         "parent",
-        "isClose",
-        // "childrens",
+        "childrens",
         "pos",
         // "attrs"
       ],
-      lineTerminators: true,
+      // lineTerminators: true,
     }),
   ],
 });
@@ -39,29 +40,22 @@ const NodePlace = {
   ATTR_VALUE: "ATTR_VALUE",
 };
 
+let nodeId = 0;
 const getNode = () => ({
+  id: nodeId++,
   childrens: [],
+  attrs: [],
   content: "",
   tag: "",
   parent: null,
   type: null,
   isClose: false,
-  attrs: {},
+  selfClosed: false,
   pos: {
     start: { line: 0, col: 0 },
     end: { line: 0, col: 0 },
   },
 });
-
-// const htmlNodes = parseNodes(rawhtml);
-// const htmlTree = buildTree(htmlNodes);
-// const generatedHtml = buildHtml(htmlTree);
-
-console.log(rawhtml);
-// rlog.info("htmlNodes", htmlNodes[0]);
-// rlog.info("htmlTree", htmlTree.childrens);
-// console.log(generatedHtml);
-// rlog.info("generatedHtml", generatedHtml);
 
 class HtmlTree {
   lines = [""];
@@ -87,31 +81,6 @@ class HtmlTree {
       delete this.currentNode.tag;
       delete this.currentNode.attrs;
     } else {
-      // const { isClose, tag } =
-      //   (
-      //     this.currentNode.content.match(/^(?<isClose>[\/])?(?<tag>[\w-]+)/) ||
-      //     {}
-      //   ).groups || {};
-      // const attrs = this.currentNode.content.matchAll(
-      //   /(?<key>[\w-]+)=(?<quotes>["'])(?<value>.*?)(?<!\\)\k<quotes>/g
-      // );
-      // this.currentNode.tag = tag;
-      // this.currentNode.isClose = Boolean(isClose);
-      // this.currentNode.attrs = [...attrs].reduce((result, data) => {
-      //   const { key, value } = (data || {}).groups;
-      //   result[key] = value;
-      //   return result;
-      // }, {});
-
-      // this.currentNode.attrsList = this.attrsList;
-
-      // this.currentNode.attrs = this.attrsList.reduce(
-      //   (result, { name, value }) => {
-      //     result[name] = value;
-      //     return result;
-      //   },
-      //   {}
-      // );
       this.currentNode.attrs = this.attrsList;
     }
 
@@ -124,6 +93,7 @@ class HtmlTree {
     for (let i = 0; i < this.rawHtml.length; i++) {
       const sym = this.rawHtml[i];
       const prevSym = this.rawHtml[i - 1];
+      const nextSym = this.rawHtml[i + 1];
 
       if (sym === "\n") {
         this.lines.push("");
@@ -131,7 +101,7 @@ class HtmlTree {
         updateById(this.lines, lastIndex(this.lines), (line) => line + sym);
       }
 
-      if (!this.nodePlace) {
+      if (this.nodePlace !== NodePlace.ATTR_VALUE) {
         if (sym === "<") {
           if (this.currentNode.type === NodeType.TEXT) {
             const nodeCol = last(this.lines).length - 1;
@@ -150,6 +120,17 @@ class HtmlTree {
             col: last(this.lines).length,
             line: this.lines.length,
           };
+          continue;
+        }
+
+        if (sym === "/" && nextSym === ">") {
+          this.currentNode.selfClosed = true;
+          this.currentNode.pos.end = {
+            col: last(this.lines).length,
+            line: this.lines.length,
+          };
+          this.pushNode();
+          i++;
           continue;
         }
 
@@ -172,12 +153,17 @@ class HtmlTree {
             continue;
           }
 
+          if (sym.match(/[\s]/)) {
+            this.nodePlace = null;
+            continue;
+          }
+
           updateById(
             this.attrsList,
             Math.max(lastIndex(this.attrsList), 0),
-            ({ name, value } = {}) => ({
-              name: (name || "") + sym,
-              value: value || "",
+            ({ name = "", value = "" } = {}) => ({
+              name: name + sym,
+              value,
             })
           );
           continue;
@@ -198,19 +184,24 @@ class HtmlTree {
           updateById(
             this.attrsList,
             Math.max(lastIndex(this.attrsList), 0),
-            ({ name, value } = {}) => ({
-              name: name || "",
-              value: (value || "") + sym,
+            ({ name = "", value = "" } = {}) => ({
+              name,
+              value: value + sym,
             })
           );
           continue;
         }
 
         if (this.nodePlace === NodePlace.TAG) {
-          if (sym.match(/\S/)) {
+          if (sym === "/") {
+            this.currentNode.isClose = true;
+            continue;
+          }
+
+          if (sym.match(/[\S]/)) {
             this.currentNode.tag += sym;
           } else {
-            this.nodePlace = NodePlace.ATTR_NAME;
+            this.nodePlace = null;
           }
           continue;
         }
@@ -239,18 +230,21 @@ class HtmlTree {
     }
   };
 
-  buildHtml = (node) => {
+  buildHtml = (node = this.tree) => {
     if (node.type === NodeType.TEXT) return node.content;
-    const attrs = Object.entries(node.attrs)
-      .map(([key, value]) => `${key}="${value}"`)
+    const attrs = (node.attrs || [])
+      .map(({ name, value }) => `${name}="${value}"`)
       .join(" ");
-    const content = node.childrens.map(buildHtml).join("");
+    const content = node.childrens.map(this.buildHtml).join("");
 
     if (node.type === NodeType.ROOT) return content;
 
+    if (node.selfClosed)
+      return ["<", [node.tag, attrs, "/>"].join(" ")].join("");
+
     return [
       "<",
-      [node.tag, attrs].filter(Boolean).join(" "),
+      [node.tag, attrs].join(" "),
       ">",
       content,
       "</",
@@ -296,7 +290,10 @@ class HtmlTree {
         }
       } else {
         parentNode.childrens.push(node);
-        parentNode = node;
+
+        if (!node.selfClosed) {
+          parentNode = node;
+        }
       }
     }
 
@@ -308,8 +305,6 @@ class HtmlTree {
 
 const htmlTree = new HtmlTree(rawhtml);
 
-// rlog.info(htmlTree.nodes[0]);
-// rlog.info(htmlTree.nodes[1]);
-// rlog.info(htmlTree.nodes[2]);
+rlog.info(htmlTree.rawHtml);
 // rlog.info(htmlTree.nodes);
-rlog.info(htmlTree.tree);
+rlog.info(htmlTree.buildHtml());
