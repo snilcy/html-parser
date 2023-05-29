@@ -9,11 +9,18 @@ const log = new Logger({
       deep: 5,
       undefined: false,
       excludeKeys: [
-        // "parent",
+        "parent",
         // "childrens",
         "pos",
         "addChar",
         "toString",
+        "buildClose",
+        "close",
+        "closed",
+        "id",
+        "selfClosed",
+        "isCloseTag",
+        "updateLastAttr",
         // "attrs"
       ],
       lineTerminators: true,
@@ -31,5 +38,9 @@ console.clear();
 const parser = new HtmlParser(rawhtml);
 
 rlog.info("rawHtml", parser.rawHtml);
-rlog.info("rawHtml", parser.nodes);
+rlog.info(parser.nodes.map((node) => node.content));
+// rlog.info("nodes", parser.tree.childrens[0]);
+// rlog.info("nodes", parser.tree.childrens[0].childrens[1].childrens[0]);
+rlog.info(parser.nodes);
+// rlog.info("tree", parser.tree.childrens);
 // rlog.info(parser.buildHtml());

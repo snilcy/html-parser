@@ -1,4 +1,5 @@
-import { last, lastIndex, updateById } from "@snilcy/cake";
+/* eslint-disable node/no-unsupported-features/es-syntax */
+import { first, last, lastIndex, updateById } from "@snilcy/cake";
 import { Logger, ConsoleDirection } from "@snilcy/logger";
 
 const log = new Logger({
@@ -30,21 +31,56 @@ const ElementPlace = {
   ATTR_VALUE: "ATTR_VALUE",
 };
 
-const Char = {
+const C = {
   NEW_LINE: "\n",
-  ANGLE_BRACKET_OPEN: "<",
-  ANGLE_BRACKET_CLOSE: ">",
   SLASH: "/",
   SLACH_BACK: "\\",
   EQUALS: "=",
+
   QUOTE_SINGLE: "'",
   QUOTE_DOUBLE: '"',
+  QUOTE_BACKTICK: "`",
+
+  BRACKET_ANGLE_OPEN: "<",
+  BRACKET_ANGLE_CLOSE: ">",
+  BRACKET_ROUND_OPEN: "(",
+  BRACKET_ROUND_CLOSE: ")",
+  BRACKET_SQUARE_OPEN: "[",
+  BRACKET_SQUARE_CLOSE: "]",
+  BRACKET_CURLY_OPEN: "{",
+  BRACKET_CURLY_CLOSE: "}",
+};
+
+const RawContentTags = ["script", "style", "pre"];
+
+const StringStartChars = [C.QUOTE_SINGLE, C.QUOTE_DOUBLE, C.QUOTE_BACKTICK];
+
+const Wrapper = {
+  [C.QUOTE_SINGLE]: C.QUOTE_SINGLE,
+  [C.QUOTE_DOUBLE]: C.QUOTE_DOUBLE,
+  [C.QUOTE_BACKTICK]: C.QUOTE_BACKTICK,
+  [C.BRACKET_ROUND_OPEN]: C.BRACKET_ROUND_CLOSE,
+  [C.BRACKET_SQUARE_OPEN]: C.BRACKET_SQUARE_CLOSE,
+  [C.BRACKET_CURLY_OPEN]: C.BRACKET_CURLY_CLOSE,
+  // [Char.BRACKET_ANGLE_OPEN]: Char.BRACKET_ANGLE_CLOSE,
+};
+
+const TagToWrappers = {
+  script: [C.QUOTE_SINGLE, C.QUOTE_DOUBLE, C.QUOTE_BACKTICK],
+  style: [C.QUOTE_SINGLE, C.QUOTE_DOUBLE],
 };
 
 class HtmlNode {
+  #type = null;
+
+  groupChars = [];
+  groups = [];
+  inGroup = false;
+
+  #needCloseGroup = false;
+
   content = "";
   parent = null;
-  type = null;
   pos = {
     start: { line: 0, col: 0 },
     end: { line: 0, col: 0 },
@@ -52,49 +88,109 @@ class HtmlNode {
 
   static lastId = 0;
 
-  constructor(type) {
+  constructor(startPos, type) {
     this.id = HtmlNode.lastId++;
-    this.setType(type);
-  }
-
-  setType(type) {
-    this.type = type;
+    this.pos.start = startPos;
+    this.#type = type;
   }
 
   get isElement() {
-    return this.type === NodeType.ELEMENT;
+    return this.#type === NodeType.ELEMENT;
   }
 
   get isText() {
-    return this.type === NodeType.TEXT;
+    return this.#type === NodeType.TEXT;
   }
 
   get isRoot() {
     return this.id === 0;
   }
 
-  addChar = (char) => {
-    this.content += char;
+  get isNode() {
+    return !this.#type;
+  }
+
+  get #lastGroup() {
+    return last(this.groups) || {};
+  }
+
+  get isGroupStarted() {
+    const group = this.#lastGroup;
+    return Boolean(group.char && !group.content.length);
+  }
+
+  get isGroupEnded() {
+    return this.#needCloseGroup;
+  }
+
+  #needCloseGroupHandler = () => {
+    this.#needCloseGroup = false;
   };
+
+  #closeGroupHandler = () => {
+    this.#needCloseGroup = true;
+    this.inGroup = false;
+  };
+
+  #newGroupHandler = (char) => {
+    this.inGroup = true;
+    this.groups.push({
+      char,
+      content: "",
+    });
+  };
+
+  #updateGroupHandler = (char) => {
+    updateById(this.groups, lastIndex(this.groups), (group) => ({
+      ...group,
+      content: group.content + char,
+    }));
+  };
+
+  addChar(char) {
+    const lastGroup = this.#lastGroup;
+    this.content += char;
+
+    if (this.#needCloseGroup) {
+      return this.#needCloseGroupHandler();
+    }
+
+    if (
+      this.inGroup &&
+      char === lastGroup.char &&
+      lastGroup.content[lastGroup.content.length - 2] !== C.SLACH_BACK
+    ) {
+      return this.#closeGroupHandler();
+    }
+
+    if (!this.inGroup && this.groupChars.includes(char)) {
+      return this.#newGroupHandler(char);
+    }
+
+    if (this.inGroup) {
+      return this.#updateGroupHandler(char);
+    }
+  }
 }
 
 class HtmlElement extends HtmlNode {
+  #place = ElementPlace.TAG_NAME;
+  groupChars = [C.QUOTE_SINGLE, C.QUOTE_DOUBLE];
+
   tagName = "";
-  isClose = false;
+  isCloseTag = false;
   selfClosed = false;
   childrens = [];
-  place = ElementPlace.TAG_NAME;
-  openedQuote = null;
   attrsList = [];
   attrs = {};
+  closed = false;
 
   constructor(startPos) {
-    super();
-    this.type = NodeType.ELEMENT;
-    this.pos.start = startPos;
+    super(startPos, NodeType.ELEMENT);
+    this.content = "<";
   }
 
-  updateLastAttr = (callback) => {
+  #updateLastAttr = (callback) => {
     updateById(
       this.attrsList,
       Math.max(lastIndex(this.attrsList), 0),
@@ -102,61 +198,89 @@ class HtmlElement extends HtmlNode {
     );
   };
 
-  addChar = (char, prevChar) => {
-    this.content += char;
-    // log.info(this.place, this.content);
+  close = () => {
+    if (this.#place === ElementPlace.TAG_NAME) {
+      this.#afterTagName();
+    }
 
-    if (this.place === ElementPlace.ATTR_NAME) {
-      if (char === Char.EQUALS) {
-        this.place = ElementPlace.ATTR_VALUE;
+    this.attrs = this.attrsList.reduce((result, { name, value }) => {
+      result[name] = value;
+      return result;
+    }, {});
+
+    this.content += C.BRACKET_ANGLE_CLOSE;
+    this.#place = null;
+    this.closed = true;
+  };
+
+  addChar = (char) => {
+    if (this.closed) {
+      return;
+    }
+
+    super.addChar(char);
+    // log.info(char, this.inGroup);
+
+    if (this.#place === ElementPlace.ATTR_NAME) {
+      // attr value
+      if (char === C.EQUALS) {
+        this.#place = ElementPlace.ATTR_VALUE;
         return;
       }
 
-      this.updateLastAttr((name, value) => ({
+      // attr without value
+      if (char.match(/\s/)) {
+        this.#place = null;
+        return;
+      }
+
+      this.#updateLastAttr((name, value) => ({
         name: name + char,
         value,
       }));
       return;
     }
 
-    if (this.place === ElementPlace.ATTR_VALUE) {
-      if (
-        (char === Char.QUOTE_SINGLE || char === Char.QUOTE_DOUBLE) &&
-        !this.openedQuote
-      ) {
-        this.openedQuote = char;
+    if (this.#place === ElementPlace.ATTR_VALUE) {
+      if (this.isGroupStarted) {
         return;
       }
 
-      if (char === this.openedQuote && prevChar !== Char.SLACH_BACK) {
-        this.place = null;
-        this.openedQuote = null;
+      if (this.isGroupEnded) {
+        this.#place = null;
         return;
       }
 
-      this.updateLastAttr((name, value) => ({
+      this.#updateLastAttr((name, value) => ({
         name,
         value: value + char,
       }));
+
       return;
     }
 
-    if (this.place === ElementPlace.TAG_NAME) {
-      if (char === Char.SLASH) {
-        this.isClose = true;
+    if (this.#place === ElementPlace.TAG_NAME) {
+      if (char === C.SLASH) {
+        this.isCloseTag = true;
         return;
       }
 
       if (char.match(/[\S]/)) {
         this.tagName += char;
       } else {
-        this.place = null;
+        this.#afterTagName();
       }
+
+      return;
+    }
+
+    if (char === C.SLASH) {
+      this.selfClosed = true;
       return;
     }
 
     if (char.match(/\S/)) {
-      this.place = ElementPlace.ATTR_NAME;
+      this.#place = ElementPlace.ATTR_NAME;
       this.attrsList.push({
         name: char,
         value: "",
@@ -164,9 +288,15 @@ class HtmlElement extends HtmlNode {
     }
   };
 
+  #afterTagName = () => {
+    this.#place = null;
+
+    // log.info(this.tagName, this.content);
+  };
+
   toString = () => {
-    const attrs = (this.attrs || [])
-      .map(({ name, value }) => `${name}="${value}"`)
+    const attrs = Object.keys(this.attrs)
+      .map((name) => `${name}="${this.attrs[name]}"`)
       .join(" ");
 
     const content = this.childrens.join("");
@@ -174,24 +304,38 @@ class HtmlElement extends HtmlNode {
     if (this.isRoot) return content;
 
     if (this.selfClosed)
-      return ["<", [this.tagName, attrs, "/>"].join(" ")].join("");
+      return [
+        C.BRACKET_ANGLE_OPEN,
+        [this.tagName, attrs, C.SLASH + C.BRACKET_ANGLE_CLOSE].join(" "),
+      ].join("");
 
     return [
-      "<",
+      C.BRACKET_ANGLE_OPEN,
       [this.tagName, attrs].join(" "),
-      ">",
+      C.BRACKET_ANGLE_CLOSE,
       content,
-      "</",
+      this.buildClose(),
+    ].join("");
+  };
+
+  buildClose = () => {
+    return [
+      C.BRACKET_ANGLE_OPEN,
+      C.SLASH,
       this.tagName,
-      ">",
+      C.BRACKET_ANGLE_CLOSE,
     ].join("");
   };
 }
 
 class HtmlText extends HtmlNode {
-  constructor() {
-    super();
-    this.type = NodeType.TEXT;
+  endSeq = null;
+
+  constructor({ startPos, endSeq, tagName } = {}) {
+    super(startPos, NodeType.TEXT);
+
+    this.endSeq = endSeq;
+    this.groupChars = TagToWrappers[tagName] || [];
   }
 
   toString() {
@@ -218,7 +362,7 @@ class Code {
   }
 
   addChar = (char) => {
-    if (char === Char.NEW_LINE) {
+    if (char === C.NEW_LINE) {
       this.newLine();
     } else {
       this.addToLastLine(char);
@@ -235,69 +379,111 @@ class Code {
 }
 
 class HtmlParser {
-  code = new Code();
   rawHtml = "";
   nodes = [];
-  tree = new HtmlElement();
 
+  code = new Code();
+  tree = new HtmlElement();
   currentNode = new HtmlNode();
 
   constructor(rawHtml) {
     this.rawHtml = rawHtml;
     this.parse();
-    // this.parseRawToNodes();
-    // this.buildTree();
+    this.buildTree();
   }
 
   pushNode = () => {
-    log.info("pushNode", this.currentNode.type, this.currentNode.content);
     this.currentNode.pos.end = this.code.pos;
+
+    if (this.currentNode.isElement) {
+      this.currentNode.close();
+    }
+
     this.nodes.push(this.currentNode);
+  };
+
+  nodeInGroupHandler = (char) => {
+    this.currentNode.addChar(char);
+  };
+
+  textNodeWithEndSeqHandler = (char, i) => {
+    const { endSeq } = this.currentNode;
+
+    if (
+      first(endSeq) === char &&
+      last(endSeq) === this.rawHtml[i + endSeq.length - 1] &&
+      this.rawHtml.slice(i, i + endSeq.length) === endSeq
+    ) {
+      this.pushNode();
+      this.currentNode = new HtmlElement(this.code.pos);
+      return;
+    }
+
+    this.currentNode.addChar(char);
+  };
+
+  openAngleBracketHandler = () => {
+    if (this.currentNode.isText) {
+      this.pushNode();
+    }
+
+    this.currentNode = new HtmlElement(this.code.pos);
+  };
+
+  closeAngleBracketHandler = () => {
+    this.pushNode();
+    this.#afterTagCloseHandler();
   };
 
   parse = () => {
     for (let i = 0; i < this.rawHtml.length; i++) {
       const char = this.rawHtml[i];
-      const prevChar = this.rawHtml[i - 1];
-      const nextChar = this.rawHtml[i + 1];
 
       this.code.addChar(char);
 
-      // in attr
-      if (this.currentNode.isElement && this.currentNode.openedQuote) {
-        this.currentNode.addChar(char, prevChar);
+      if (this.currentNode.inGroup) {
+        this.nodeInGroupHandler(char);
         continue;
       }
 
-      // open tag
-      if (char === Char.ANGLE_BRACKET_OPEN) {
-        if (this.currentNode.isText) {
-          this.pushNode();
-        }
-
-        this.currentNode = new HtmlElement(this.code.pos);
+      if (this.currentNode.endSeq) {
+        this.textNodeWithEndSeqHandler(char, i);
         continue;
       }
 
-      // selfClosed
-      if (char === Char.SLASH && nextChar === Char.ANGLE_BRACKET_CLOSE) {
-        this.currentNode.selfClosed = true;
+      if (char === C.BRACKET_ANGLE_OPEN) {
+        this.openAngleBracketHandler();
         continue;
       }
 
-      // close tag
-      if (char === Char.ANGLE_BRACKET_CLOSE) {
-        this.pushNode();
-        this.currentNode = new HtmlNode();
+      if (char === C.BRACKET_ANGLE_CLOSE) {
+        this.closeAngleBracketHandler();
         continue;
       }
 
-      if (!this.currentNode.type) {
+      if (this.currentNode.isNode) {
         this.currentNode = new HtmlText(this.code.pos);
       }
 
       this.currentNode.addChar(char);
     }
+  };
+
+  #afterTagCloseHandler = () => {
+    const lastNode = last(this.nodes);
+    const isOpenRawContentTag =
+      !lastNode.isCloseTag && RawContentTags.includes(lastNode.tagName);
+
+    if (isOpenRawContentTag) {
+      this.currentNode = new HtmlText({
+        startPos: this.code.pos,
+        endSeq: [C.BRACKET_ANGLE_OPEN, C.SLASH, lastNode.tagName].join(""),
+        tagName: lastNode.tagName,
+      });
+      return;
+    }
+
+    this.currentNode = new HtmlNode();
   };
 
   buildTree = () => {
@@ -307,13 +493,13 @@ class HtmlParser {
       const node = this.nodes[i];
       node.parent = parentNode;
 
-      if (node.type === NodeType.TEXT) {
+      if (node.isText) {
         parentNode.childrens.push(node);
         continue;
       }
 
-      if (node.isClose) {
-        if (node.tag === parentNode.tagName) {
+      if (node.isCloseTag) {
+        if (node.tagName === parentNode.tagName) {
           parentNode = parentNode.parent;
         } else {
           console.error(
@@ -347,6 +533,10 @@ class HtmlParser {
     if (this.tree.childrens.length > 1) {
       throw new Error("Need root container");
     }
+  };
+
+  buildHtml = () => {
+    return this.tree.toString();
   };
 }
 
