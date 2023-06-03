@@ -5,22 +5,28 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon ./src/index.js"
+    "watch": "tsc --watch",
+    "build": "tsc",
+    "test": "nodemon ./test/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@snilcy/eslint-config": "snilcy/eslint-config",
     "@snilcy/cake": "snilcy/cake",
+    "@snilcy/eslint-config": "snilcy/eslint-config",
+    "@types/node": "^20.2.5",
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
     "eslint": "^8.37.0",
     "eslint-plugin-prettier": "^4.2.1",
     "nodemon": "^2.0.22",
-    "typescript": "^5.0.2"
+    "typescript": "^5.0.4"
   },
   "dependencies": {
     "@snilcy/logger": "snilcy/logger"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
