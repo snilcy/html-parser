@@ -1,15 +1,16 @@
-declare enum NodeType {
-    EMPTY = "empty",
-    ELEMENT = "element",
-    TEXT = "text"
+import { ICharGroups, ICharGroupToCharMap } from "./types.js";
+export declare enum NodeType {
+    EMPTY = "EMPTY",
+    ELEMENT = "ELEMENT",
+    TEXT = "TEXT"
 }
-declare enum ElementPlace {
-    EMPTY = "empty",
-    TAG_NAME = "tag-name",
-    ATTR_NAME = "attr-name",
-    ATTR_VALUE = "attr-value"
+export declare enum ElementPlace {
+    EMPTY = "EMPTY",
+    TAG_NAME = "TAG_NAME",
+    ATTR_NAME = "ATTR_NAME",
+    ATTR_VALUE = "ATTR_VALUE"
 }
-declare const Char: {
+export declare const Char: {
     NEW_LINE: string;
     SLASH: string;
     SLACH_BACK: string;
@@ -25,13 +26,14 @@ declare const Char: {
     BRACKET_SQUARE_CLOSE: string;
     BRACKET_CURLY_OPEN: string;
     BRACKET_CURLY_CLOSE: string;
+    BRACKET_CURLY_OPEN_DOUBLE: string;
+    BRACKET_CURLY_CLOSE_DOUBLE: string;
 };
-declare const RawContentTags: string[];
-declare const StringStartChars: string[];
-declare const Wrapper: {
-    [x: string]: string;
-};
-declare const TagToWrappers: {
+export declare const RawContentTags: string[];
+export declare const StringStartChars: string[];
+export declare const CharGroups: ICharGroups;
+export declare const StartChartToGroup: ICharGroupToCharMap;
+export declare const CharGroupChildrens: Map<any, any>;
+export declare const TagToWrappers: {
     [keyof: string]: string[];
 };
-export { NodeType, ElementPlace, Char, RawContentTags, StringStartChars, Wrapper, TagToWrappers, };

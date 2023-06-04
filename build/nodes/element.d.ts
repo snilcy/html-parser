@@ -1,4 +1,4 @@
-import { IListAttr, IObjAttr, IPosition } from "../type.js";
+import { IListAttr, IObjAttr, ICodePosition } from "../types.js";
 import { HtmlNode } from "./node.js";
 declare class HtmlElement extends HtmlNode {
     private place;
@@ -9,7 +9,7 @@ declare class HtmlElement extends HtmlNode {
     childrens: HtmlNode[];
     attrsList: IListAttr[];
     attrs: IObjAttr;
-    constructor(startPos?: IPosition);
+    constructor(startPos?: ICodePosition);
     private afterTagName;
     private updateLastAttr;
     close: () => void;

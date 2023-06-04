@@ -15,6 +15,13 @@
   "plugins": ["@typescript-eslint"],
   "extends": ["@snilcy/eslint-config/node", "@snilcy/eslint-config/prettier"],
   "rules": {
-    "node/file-extension-in-import": 0
+    "node/file-extension-in-import": 0,
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ]
   }
 }

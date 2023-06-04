@@ -1,6 +1,6 @@
 import { lastIndex, updateById } from "@snilcy/cake";
 import { ElementPlace, Char, NodeType } from "../const.js";
-import { IListAttr, IObjAttr, IPosition } from "../type.js";
+import { IListAttr, IObjAttr, ICodePosition } from "../types.js";
 import { HtmlNode } from "./node.js";
 
 class HtmlElement extends HtmlNode {
@@ -14,7 +14,7 @@ class HtmlElement extends HtmlNode {
   public attrsList: IListAttr[] = [];
   public attrs: IObjAttr = {};
 
-  constructor(startPos?: IPosition) {
+  constructor(startPos?: ICodePosition) {
     super(startPos, NodeType.ELEMENT);
     this.groupChars = [Char.QUOTE_SINGLE, Char.QUOTE_DOUBLE];
     this.content = "<";

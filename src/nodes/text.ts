@@ -1,9 +1,9 @@
 import { NodeType, TagToWrappers } from "../const.js";
-import { IPosition } from "../type.js";
+import { ICodePosition } from "../types.js";
 import { HtmlNode } from "./node.js";
 
 interface IHtmlTextConstructor {
-  startPos: IPosition;
+  startPos: ICodePosition;
   endSeq?: string;
   parentTagName?: string;
 }
@@ -19,7 +19,12 @@ class HtmlText extends HtmlNode {
     super(startPos, NodeType.TEXT);
 
     this.endSeq = endSeq;
-    this.groupChars = TagToWrappers[parentTagName] || [];
+
+    if (parentTagName) {
+      this.groupChars = TagToWrappers[parentTagName];
+    } else {
+      this.groupChars = [];
+    }
   }
 
   public toString() {

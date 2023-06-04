@@ -1,5 +1,5 @@
 import { last, lastIndex, updateById } from "@snilcy/cake";
-import type { IGroup, IPosition, IRange } from "../type.js";
+import type { IGroup, ICodePosition, ICodeRange } from "../types.js";
 import { Char, NodeType } from "../const.js";
 import { HtmlElement } from "./element.js";
 import { HtmlText } from "./text.js";
@@ -13,7 +13,7 @@ class HtmlNode {
   public content = "";
   // eslint-disable-next-line no-use-before-define
   public parent: HtmlElement | null = null;
-  public pos: IRange = {
+  public pos: ICodeRange = {
     start: { line: 0, col: 0 },
     end: { line: 0, col: 0 },
   };
@@ -24,7 +24,7 @@ class HtmlNode {
   private needCloseGroup = false;
 
   constructor(
-    startPos: IPosition = { col: 0, line: 0 },
+    startPos: ICodePosition = { col: 0, line: 0 },
     type: NodeType = NodeType.EMPTY
   ) {
     this.id = HtmlNode.lastId++;

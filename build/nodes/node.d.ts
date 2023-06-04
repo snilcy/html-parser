@@ -1,4 +1,4 @@
-import type { IGroup, IPosition, IRange } from "../type.js";
+import type { IGroup, ICodePosition, ICodeRange } from "../types.js";
 import { NodeType } from "../const.js";
 import { HtmlElement } from "./element.js";
 import { HtmlText } from "./text.js";
@@ -9,11 +9,11 @@ declare class HtmlNode {
     inGroup: boolean;
     content: string;
     parent: HtmlElement | null;
-    pos: IRange;
+    pos: ICodeRange;
     protected groupChars: string[];
     private type;
     private needCloseGroup;
-    constructor(startPos?: IPosition, type?: NodeType);
+    constructor(startPos?: ICodePosition, type?: NodeType);
     isElement(): this is HtmlElement;
     isText(): this is HtmlText;
     get isRoot(): boolean;

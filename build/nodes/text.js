@@ -5,7 +5,12 @@ class HtmlText extends HtmlNode {
     constructor({ startPos, endSeq = "", parentTagName = "", }) {
         super(startPos, NodeType.TEXT);
         this.endSeq = endSeq;
-        this.groupChars = TagToWrappers[parentTagName] || [];
+        if (parentTagName) {
+            this.groupChars = TagToWrappers[parentTagName];
+        }
+        else {
+            this.groupChars = [];
+        }
     }
     toString() {
         return this.content;

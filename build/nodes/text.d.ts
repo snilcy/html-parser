@@ -1,7 +1,7 @@
-import { IPosition } from "../type.js";
+import { ICodePosition } from "../types.js";
 import { HtmlNode } from "./node.js";
 interface IHtmlTextConstructor {
-    startPos: IPosition;
+    startPos: ICodePosition;
     endSeq?: string;
     parentTagName?: string;
 }

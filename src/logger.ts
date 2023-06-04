@@ -1,6 +1,6 @@
 import { Logger } from "@snilcy/logger";
 
-const logger = new Logger("Root", {
+const logger = new Logger("", {
   console: {
     deep: 5,
     undefined: false,
