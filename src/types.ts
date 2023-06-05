@@ -22,14 +22,36 @@ export interface IObjAttr {
   [keyof: string]: string;
 }
 
+export type ICharGroupName = string;
 export type ICharGroup = [string, string];
 
 export interface ICharGroups {
-  [keyof: string]: ICharGroup;
+  [groupName: ICharGroupName]: ICharGroup;
 }
 
-export interface ICharGroupToCharMap {
-  [keyof: string]: {
-    [keyof: string]: ICharGroup;
+export interface ICharToGroupSection {
+  [char: string]: {
+    groupName?: ICharGroupName;
+    inner?: ICharToGroupSection;
   };
+}
+
+export interface ICharToGroup {
+  open: ICharToGroupSection;
+  close: ICharToGroupSection;
+}
+
+export interface ICharGroupsStartMap {
+  [groupName: ICharGroupName]: ICharGroup;
+}
+
+export interface IGroupUsageList {
+  [groupName: ICharGroupName]: true;
+}
+
+export interface IGroupsConfig {
+  groups: {
+    [groupName: ICharGroupName]: IGroupUsageList;
+  };
+  root: IGroupUsageList;
 }

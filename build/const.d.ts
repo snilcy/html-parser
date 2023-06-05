@@ -1,4 +1,4 @@
-import { ICharGroups, ICharGroupToCharMap } from "./types.js";
+import { ICharGroups, ICharToGroup } from "./types.js";
 export declare enum NodeType {
     EMPTY = "EMPTY",
     ELEMENT = "ELEMENT",
@@ -31,9 +31,19 @@ export declare const Char: {
 };
 export declare const RawContentTags: string[];
 export declare const StringStartChars: string[];
+export declare const CharGroupName: {
+    TEXT: string;
+    QUOTE_SINGLE: string;
+    QUOTE_DOUBLE: string;
+    QUOTE_BACKTICK: string;
+    BRACKET_ROUND: string;
+    BRACKET_SQUARE: string;
+    BRACKET_CURLY: string;
+    BRACKET_CURLY_DOUBLE: string;
+    BRACKET_ANGLE: string;
+};
 export declare const CharGroups: ICharGroups;
-export declare const StartChartToGroup: ICharGroupToCharMap;
-export declare const CharGroupChildrens: Map<any, any>;
+export declare const CharToGroup: ICharToGroup;
 export declare const TagToWrappers: {
     [keyof: string]: string[];
 };

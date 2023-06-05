@@ -1,75 +1,148 @@
 import { logger } from "./logger.js";
-import { CharGroups, CharGroupChildrens, StartChartToGroup } from "./const.js";
+import { CharGroups, CharToGroup } from "./const.js";
 const log = logger.ns("GroupBuiler");
-class Group {
+class Node {
+    parent;
+    id;
+    constructor(parent) {
+        this.parent = parent;
+        this.id = Node.lastId++;
+    }
+    isRoot() {
+        return !this.parent;
+    }
+    isText() {
+        return this instanceof Text;
+    }
+    isGroup() {
+        return this instanceof Group;
+    }
+    isContainer() {
+        return this instanceof Container;
+    }
+    static lastId = 0;
+}
+class Text extends Node {
     content = "";
-    // eslint-disable-next-line no-use-before-define
+    addChar(char) {
+        this.content += char;
+    }
+}
+class Container extends Node {
     childrens = [];
-    parent = null;
-    chars = CharGroups.EMPTY;
+}
+class Group extends Container {
+    chars;
+    groupName;
     closed = false;
-    childrenGroups = [];
-    constructor(chars = CharGroups.EMPTY) {
-        this.chars = chars;
-        this.childrenGroups = CharGroupChildrens.get(chars) || [];
+    includes;
+    constructor(parent, groupName, includes = {}) {
+        super(parent);
+        this.groupName = groupName;
+        this.includes = includes;
+        this.chars = CharGroups[groupName];
     }
-    get isEmpty() {
-        return this.chars === CharGroups.EMPTY && !this.content.length;
-    }
-    get openChar() {
+    get openChars() {
         return this.chars[0];
     }
-    get closeChar() {
+    get closeChars() {
         return this.chars[1];
     }
-    inChildren(char) {
-        return this.closeChar && this.closeChar;
+    isCharsGroup() {
+        return Boolean(this.groupName);
     }
-    addChar(char) { }
+    toString() {
+        return [
+            `${this.id}${this.openChars}`,
+            // this.childrens.map((str) => `${"_".repeat(this.deep) + str}`).join(""),
+            `${this.id}${this.closeChars}`,
+        ].join("\n");
+    }
 }
 export class GroupBuilder {
-    tree = new Group();
+    tree = new Container(null);
     raw = "";
+    config;
+    nodes = [this.tree];
     head = this.tree;
-    constructor(raw) {
+    i = 0;
+    constructor(raw, config) {
         this.raw = raw;
+        this.config = config;
         this.parse();
-        log.debug("StartChartToGroup", StartChartToGroup);
+        // log.debug("StartChartToGroup", StartChartToGroup);
+        // log.debug("config", config);
     }
-    getCharGroup(char, i) {
-        if (!char) {
+    get char() {
+        return this.raw[this.i];
+    }
+    openGroup(groupName) {
+        const parent = this.head.isText() ? this.head.parent : this.head;
+        if (!parent.isContainer())
             return;
+        const group = new Group(parent, groupName, this.config.groups[groupName]);
+        parent.childrens.push(group);
+        group.parent = parent;
+        this.head = group;
+        this.nodes.push(group);
+    }
+    closeGroup(group) {
+        // const node = new Node(group.parent);
+        group.closed = true;
+        // group.parent.childrens.push(node);
+        this.head = group.parent;
+    }
+    closeGroupHandler() {
+        const { groupName, inner } = CharToGroup.close[this.char] || {};
+        if (!groupName)
+            return false;
+        const parent = this.head.isText() ? this.head.parent : this.head;
+        log.info("closeGroupHandler", this.char, groupName, parent);
+        if (parent.isGroup() && parent.groupName === groupName) {
+            this.closeGroup(parent);
+            return true;
         }
-        const len = char.length;
-        const lenGroup = StartChartToGroup[len];
-        if (len === 1) {
-            return lenGroup[char];
+        return false;
+    }
+    openGroupHandler() {
+        const { groupName, inner } = CharToGroup.open[this.char] || {};
+        if (!groupName)
+            return false;
+        const parent = this.head.isText() ? this.head.parent : this.head;
+        if (parent.isGroup()) {
+            if (!parent.includes[groupName]) {
+                return false;
+            }
         }
-        if (len === 2) {
-            return lenGroup[char + this.raw[i + 1]];
+        if (this.head.isText() || this.head.isRoot()) {
+            this.openGroup(groupName);
+            return true;
         }
-        return lenGroup;
+        return false;
+    }
+    textHandler() {
+        if (!this.head.isText()) {
+            const parent = this.head.isContainer() ? this.head : this.head.parent;
+            const text = new Text(parent);
+            parent.childrens.push(text);
+            this.nodes.push(text);
+            this.head = text;
+        }
+        if (this.head.isText()) {
+            this.head.addChar(this.char);
+        }
+        return false;
     }
     parse() {
-        log.debug("parse", this.raw);
         for (let i = 0; i < this.raw.length; i++) {
-            const char = this.raw[i];
-            // log.debug(char);
-            // log.debug(char, this.getCharGroup(char, i));
-            // if (this.head.isEmpty) {
-            //   // s;
-            // }
-            const newGroup = this.head.addChar(char);
-            if (newGroup) {
-                this.head = newGroup;
-            }
-            if (this.head.closed) {
-                const nextGroup = new Group();
-                if (this.head.parent) {
-                    this.head.parent.childrens.push(nextGroup);
-                }
-                this.head = nextGroup;
-            }
+            this.i = i;
+            if (this.closeGroupHandler())
+                continue;
+            const open = this.openGroupHandler();
+            if (open)
+                continue;
+            if (this.textHandler())
+                continue;
         }
     }
 }

@@ -1,101 +1,195 @@
 import { logger } from "./logger.js";
-import { CharGroups, CharGroupChildrens, StartChartToGroup } from "./const.js";
-import { ICharGroups, ICharGroup } from "./types.js";
+import { CharGroupName, CharGroups, CharToGroup } from "./const.js";
+import {
+  ICharGroup,
+  ICharGroupName,
+  IGroupUsageList,
+  IGroupsConfig,
+} from "./types.js";
 
 const log = logger.ns("GroupBuiler");
 
-class Group {
+class Node {
+  public id: number;
+
+  constructor(public parent: Container) {
+    this.id = Node.lastId++;
+  }
+
+  public isRoot() {
+    return !this.parent;
+  }
+
+  public isText(): this is Text {
+    return this instanceof Text;
+  }
+
+  public isGroup(): this is Group {
+    return this instanceof Group;
+  }
+
+  public isContainer(): this is Container {
+    return this instanceof Container;
+  }
+
+  static lastId = 0;
+}
+
+class Text extends Node {
   public content = "";
-  // eslint-disable-next-line no-use-before-define
-  public childrens: Group[] = [];
-  public parent: Group | null = null;
-  public chars = CharGroups.EMPTY;
+
+  public addChar(char: string) {
+    this.content += char;
+  }
+}
+
+class Container extends Node {
+  childrens: Node[] = [];
+}
+
+class Group extends Container {
+  public chars: ICharGroup;
+  public groupName: ICharGroupName;
   public closed = false;
+  public includes: IGroupUsageList;
 
-  private childrenGroups: ICharGroup[] = [];
-
-  constructor(chars: ICharGroup = CharGroups.EMPTY) {
-    this.chars = chars;
-    this.childrenGroups = CharGroupChildrens.get(chars) || [];
+  constructor(
+    parent: Container,
+    groupName: ICharGroupName,
+    includes: IGroupUsageList = {}
+  ) {
+    super(parent);
+    this.groupName = groupName;
+    this.includes = includes;
+    this.chars = CharGroups[groupName];
   }
 
-  public get isEmpty() {
-    return this.chars === CharGroups.EMPTY && !this.content.length;
-  }
-
-  private get openChar() {
+  private get openChars() {
     return this.chars[0];
   }
 
-  private get closeChar() {
+  private get closeChars() {
     return this.chars[1];
   }
 
-  inChildren(char: string) {
-    return this.closeChar && this.closeChar;
+  public isCharsGroup(): this is Group {
+    return Boolean(this.groupName);
   }
 
-  addChar(char: string): Group | undefined {}
+  toString() {
+    return [
+      `${this.id}${this.openChars}`,
+      // this.childrens.map((str) => `${"_".repeat(this.deep) + str}`).join(""),
+      `${this.id}${this.closeChars}`,
+    ].join("\n");
+  }
 }
 
 export class GroupBuilder {
-  public tree = new Group();
+  public tree = new Container(null as unknown as Container);
   public raw = "";
+  public config: IGroupsConfig;
+  public nodes: Node[] = [this.tree];
 
-  private head = this.tree;
+  private head: Node = this.tree;
+  private i = 0;
 
-  constructor(raw: string) {
+  constructor(raw: string, config: IGroupsConfig) {
     this.raw = raw;
+    this.config = config;
     this.parse();
-    log.debug("StartChartToGroup", StartChartToGroup);
+    // log.debug("StartChartToGroup", StartChartToGroup);
+    // log.debug("config", config);
   }
 
-  private getCharGroup(char: string, i: number) {
-    if (!char) {
-      return;
+  private get char() {
+    return this.raw[this.i];
+  }
+
+  private openGroup(groupName: ICharGroupName) {
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    if (!parent.isContainer()) return;
+
+    const group = new Group(parent, groupName, this.config.groups[groupName]);
+
+    parent.childrens.push(group);
+    group.parent = parent;
+
+    this.head = group;
+    this.nodes.push(group);
+  }
+
+  private closeGroup(group: Group) {
+    // const node = new Node(group.parent);
+
+    group.closed = true;
+    // group.parent.childrens.push(node);
+
+    this.head = group.parent;
+  }
+
+  private closeGroupHandler(): boolean {
+    const { groupName, inner } = CharToGroup.close[this.char] || {};
+    if (!groupName) return false;
+
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    log.info("closeGroupHandler", this.char, groupName, parent);
+    if (parent.isGroup() && parent.groupName === groupName) {
+      this.closeGroup(parent);
+      return true;
     }
 
-    const len = char.length;
-    const lenGroup = StartChartToGroup[len];
+    return false;
+  }
 
-    if (len === 1) {
-      return lenGroup[char];
+  private openGroupHandler(): boolean {
+    const { groupName, inner } = CharToGroup.open[this.char] || {};
+    if (!groupName) return false;
+
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    if (parent.isGroup()) {
+      if (!parent.includes[groupName]) {
+        return false;
+      }
     }
 
-    if (len === 2) {
-      return lenGroup[char + this.raw[i + 1]];
+    if (this.head.isText() || this.head.isRoot()) {
+      this.openGroup(groupName);
+      return true;
     }
 
-    return lenGroup;
+    return false;
+  }
+
+  private textHandler(): boolean {
+    if (!this.head.isText()) {
+      const parent = this.head.isContainer() ? this.head : this.head.parent;
+      const text = new Text(parent);
+
+      parent.childrens.push(text);
+
+      this.nodes.push(text);
+      this.head = text;
+    }
+
+    if (this.head.isText()) {
+      this.head.addChar(this.char);
+    }
+
+    return false;
   }
 
   private parse() {
-    log.debug("parse", this.raw);
-
     for (let i = 0; i < this.raw.length; i++) {
-      const char = this.raw[i];
-      // log.debug(char);
+      this.i = i;
+      if (this.closeGroupHandler()) continue;
 
-      // log.debug(char, this.getCharGroup(char, i));
-
-      // if (this.head.isEmpty) {
-      //   // s;
-      // }
-
-      const newGroup = this.head.addChar(char);
-      if (newGroup) {
-        this.head = newGroup;
-      }
-
-      if (this.head.closed) {
-        const nextGroup = new Group();
-
-        if (this.head.parent) {
-          this.head.parent.childrens.push(nextGroup);
-        }
-
-        this.head = nextGroup;
-      }
+      const open = this.openGroupHandler();
+      if (open) continue;
+      if (this.textHandler()) continue;
     }
   }
 }
