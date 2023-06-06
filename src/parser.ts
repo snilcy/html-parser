@@ -1,189 +1,235 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { first, last } from "@snilcy/cake";
-import { Char, RawContentTags } from "./const.js";
-
-import { HtmlNode } from "./nodes/node.js";
-import { HtmlElement } from "./nodes/element.js";
-import { HtmlText } from "./nodes/text.js";
-
 import { logger } from "./logger.js";
-import { Code } from "./code.js";
+import { Char, CharGroups, CharToGroup } from "./const.js";
+import {
+  ICharGroup,
+  ICharGroupName,
+  ICharGroupUsageList,
+  ICharGroupConfig,
+  ICharToGroupSection,
+  ICharGroupMatch,
+} from "./types.js";
 
-const log = logger.ns("P");
+const log = logger.ns("GroupBuiler");
 
-class HtmlParser {
-  private code = new Code();
-  private currentNode = new HtmlNode();
+class Node {
+  public id: number;
 
-  public rawHtml = "";
-  public tree = new HtmlElement();
-  public nodes: HtmlNode[] = [];
-
-  constructor(rawHtml: string) {
-    this.rawHtml = rawHtml;
-    this.parse();
-    this.buildTree();
+  constructor(public parent: Container) {
+    this.id = Node.lastId++;
   }
 
-  pushNode = () => {
-    this.currentNode.pos.end = this.code.pos;
+  public isRoot() {
+    return !this.parent;
+  }
 
-    if (this.currentNode.isElement()) {
-      this.currentNode.close();
-    }
+  public isText(): this is Text {
+    return this instanceof Text;
+  }
 
-    this.nodes.push(this.currentNode);
-  };
+  public isGroup(): this is Group {
+    return this instanceof Group;
+  }
 
-  nodeInGroupHandler = (char: string) => {
-    this.currentNode.addChar(char);
-  };
+  public isContainer(): this is Container {
+    return this instanceof Container;
+  }
 
-  textNodeWithEndSeqHandler = (char: string, i: number) => {
-    const { endSeq } = this.currentNode as HtmlText;
-
-    if (
-      first([...endSeq]) === char &&
-      last([...endSeq]) === this.rawHtml[i + endSeq.length - 1] &&
-      this.rawHtml.slice(i, i + endSeq.length) === endSeq
-    ) {
-      this.pushNode();
-      this.currentNode = new HtmlElement(this.code.pos);
-      return;
-    }
-
-    this.currentNode.addChar(char);
-  };
-
-  openAngleBracketHandler = () => {
-    if (this.currentNode.isText()) {
-      this.pushNode();
-    }
-
-    this.currentNode = new HtmlElement(this.code.pos);
-  };
-
-  closeAngleBracketHandler = () => {
-    this.pushNode();
-    this.#afterTagCloseHandler();
-  };
-
-  parse = () => {
-    for (let i = 0; i < this.rawHtml.length; i++) {
-      const char = this.rawHtml[i];
-
-      this.code.addChar(char);
-
-      if (this.currentNode.inGroup) {
-        this.nodeInGroupHandler(char);
-        continue;
-      }
-
-      if (this.currentNode.isText() && this.currentNode.endSeq) {
-        this.textNodeWithEndSeqHandler(char, i);
-        continue;
-      }
-
-      if (char === Char.BRACKET_ANGLE_OPEN) {
-        this.openAngleBracketHandler();
-        continue;
-      }
-
-      if (char === Char.BRACKET_ANGLE_CLOSE) {
-        this.closeAngleBracketHandler();
-        continue;
-      }
-
-      if (this.currentNode.isNode) {
-        this.currentNode = new HtmlText({
-          startPos: this.code.pos,
-        });
-      }
-
-      this.currentNode.addChar(char);
-    }
-  };
-
-  #afterTagCloseHandler = () => {
-    const lastNode = last(this.nodes);
-
-    if (lastNode && lastNode.isElement()) {
-      const isOpenRawContentTag =
-        !lastNode.isCloseTag && RawContentTags.includes(lastNode.tagName);
-
-      if (isOpenRawContentTag) {
-        this.currentNode = new HtmlText({
-          startPos: this.code.pos,
-          endSeq: [Char.BRACKET_ANGLE_OPEN, Char.SLASH, lastNode.tagName].join(
-            ""
-          ),
-          parentTagName: lastNode.tagName,
-        });
-        return;
-      }
-    }
-
-    this.currentNode = new HtmlNode();
-  };
-
-  buildTree = () => {
-    let parentElement: HtmlElement = this.tree;
-
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i];
-      node.parent = parentElement;
-
-      if (node.isText()) {
-        parentElement.childrens.push(node);
-        continue;
-      }
-
-      if (node.isElement()) {
-        if (node.isCloseTag) {
-          if (node.tagName === parentElement.tagName && parentElement.parent) {
-            parentElement = parentElement.parent;
-          } else {
-            console.error(
-              [
-                `${node.pos.start.line - 1}: ${
-                  this.code.lines[node.pos.start.line - 2]
-                }`,
-                `${node.pos.start.line}: ${
-                  this.code.lines[node.pos.start.line - 1]
-                }`,
-                [
-                  " ".repeat(
-                    node.pos.start.line.toString().length +
-                      node.pos.start.col +
-                      1
-                  ),
-                  "^".repeat(node.pos.end.col - node.pos.start.col + 1),
-                  `(`,
-                  [node.pos.start.col, node.pos.end.col].join("-"),
-                  `)`,
-                ].join(""),
-              ].join("\n")
-            );
-            throw new Error(`Close tag isnt valid`);
-          }
-        } else {
-          parentElement.childrens.push(node);
-
-          if (!node.selfClosed) {
-            parentElement = node;
-          }
-        }
-      }
-    }
-
-    if (this.tree.childrens.length > 1) {
-      throw new Error("Need root container");
-    }
-  };
-
-  buildHtml = () => {
-    return this.tree.toString();
-  };
+  static lastId = 0;
 }
 
-export { HtmlParser };
+class Text extends Node {
+  public content = "";
+
+  public addChar(char: string) {
+    // log.info("addChar", char, this.char);
+    this.content += char;
+  }
+}
+
+class Container extends Node {
+  childrens: Node[] = [];
+}
+
+class Group extends Container {
+  public chars: ICharGroup;
+  public groupName: ICharGroupName;
+  public closed = false;
+  public includes: ICharGroupUsageList;
+
+  constructor(
+    parent: Container,
+    groupName: ICharGroupName,
+    includes: ICharGroupUsageList = {}
+  ) {
+    super(parent);
+    this.groupName = groupName;
+    this.includes = includes;
+    this.chars = CharGroups[groupName];
+  }
+
+  public get openChars() {
+    return this.chars[0];
+  }
+
+  public get closeChars() {
+    return this.chars[1];
+  }
+
+  public isCharsGroup(): this is Group {
+    return Boolean(this.groupName);
+  }
+}
+
+export class Parser {
+  public tree = new Container(null as unknown as Container);
+  public raw = "";
+  public config: ICharGroupConfig;
+  public nodes: Node[] = [this.tree];
+
+  private head: Node = this.tree;
+  private i = 0;
+
+  constructor(raw: string, config: ICharGroupConfig) {
+    this.raw = raw;
+    this.config = config;
+    this.parse();
+    // log.debug("StartChartToGroup", StartChartToGroup);
+    // log.debug("config", config);
+  }
+
+  private get prevChar() {
+    return this.raw[this.i - 1];
+  }
+
+  private get char() {
+    return this.raw[this.i];
+  }
+
+  private openGroup(groupName: ICharGroupName) {
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    if (!parent.isContainer()) return;
+
+    const group = new Group(parent, groupName, this.config.groups[groupName]);
+    this.shiftIterator(group.openChars);
+
+    parent.childrens.push(group);
+    group.parent = parent;
+
+    this.head = group;
+    this.nodes.push(group);
+  }
+
+  private closeGroup(group: Group) {
+    // const node = new Node(group.parent);
+
+    group.closed = true;
+    this.shiftIterator(group.closeChars);
+    // group.parent.childrens.push(node);
+
+    this.head = group.parent;
+  }
+
+  private closeGroupHandler(): boolean {
+    const groups = this.getGroupNameMatchs(CharToGroup.close);
+    if (!groups.length) return false;
+
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    // log.info("closeGroupHandler", this.char, groups, parent);
+    if (parent.isGroup() && groups.matchs[parent.groupName]) {
+      this.closeGroup(parent);
+      return true;
+    }
+
+    return false;
+  }
+
+  private shiftIterator(group: string) {
+    this.i += group.length - 1;
+  }
+
+  private getGroupNameMatchs(list?: ICharToGroupSection) {
+    let i = this.i;
+    let char = this.char;
+    const withEscape = this.prevChar === Char.SLACH_BACK;
+
+    const result: ICharGroupMatch = {
+      matchs: {},
+      length: 0,
+    };
+
+    if (withEscape) {
+      return result;
+    } 
+
+    while (list && list[char]) {
+      const groupName = list[char].groupName;
+
+      if (groupName) {
+        result.matchs[groupName] = true;
+        result.longest =
+          groupName.length > (result.longest || "").length
+            ? groupName
+            : result.longest;
+        result.length++;
+      }
+      list = list[char].inner;
+      char = this.raw[++i];
+    }
+
+    return result;
+  }
+
+  private openGroupHandler(): boolean {
+    const groups = this.getGroupNameMatchs(CharToGroup.open);
+
+    if (!groups.longest) return false;
+
+    const parent = this.head.isText() ? this.head.parent : this.head;
+
+    if (parent.isGroup()) {
+      if (parent.includes[groups.longest]) {
+        this.openGroup(groups.longest);
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    if (parent.isRoot()) {
+      if (this.config.root[groups.longest]) {
+        this.openGroup(groups.longest);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private textHandler(): boolean {
+    if (!this.head.isText()) {
+      const parent = this.head.isContainer() ? this.head : this.head.parent;
+      const text = new Text(parent);
+
+      parent.childrens.push(text);
+
+      this.nodes.push(text);
+      this.head = text;
+    }
+
+    if (this.head.isText()) {
+      this.head.addChar(this.char);
+    }
+
+    return false;
+  }
+
+  private parse() {
+    for (this.i = 0; this.i < this.raw.length; this.i++) {
+      if (this.closeGroupHandler()) continue;
+      if (this.openGroupHandler()) continue;
+      if (this.textHandler()) continue;
+    }
+  }
+}

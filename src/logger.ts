@@ -35,7 +35,7 @@ const logger = new Logger("", {
       // "inGroup",
       // "attrsList",
     ],
-    lineTerminators: true,
+    // lineTerminators: true,
   },
 });
 

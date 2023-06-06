@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "watch": "tsc --watch",
-    "build": "tsc",
+    "build": "rm -rf ./build/ && tsc --project tsconfig.production.json",
     "test": "nodemon ./test/index.js"
   },
   "keywords": [],

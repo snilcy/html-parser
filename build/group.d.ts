@@ -27,7 +27,7 @@ declare class Group extends Container {
     isCharsGroup(): this is Group;
     toString(): string;
 }
-export declare class GroupBuilder {
+export declare class Parser {
     tree: Container;
     raw: string;
     config: IGroupsConfig;

@@ -3,13 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 // import { HtmlParser } from "../build/parser.js";
 import { logger } from "../build/logger.js";
-import { GroupBuilder } from "../build/group.js";
+import { Parser } from "../build/parser.js";
 import { CharGroupName } from "../build/const.js";
 import { config } from "../build/html.js";
 
 const log = logger.ns("R", {
   console: {
-    lineTerminators: false,
+    lineTerminators: true,
+    // length: true
   },
 });
 
@@ -32,12 +33,9 @@ const c = {
   ],
 };
 
-
-
-const gruopBuilder = new GroupBuilder(rawhtml, config);
-log.info(gruopBuilder.tree.childrens);
+const gruopBuilder = new Parser(rawhtml, config);
+log.info(gruopBuilder.tree);
 // log.info(gruopBuilder.nodes);
-// log.info(`\n${gruopBuilder.tree.toString()}`);
 
 // log.info("rawHtml", parser.rawHtml);
 // log.info(parser.nodes.map((node) => node.content));

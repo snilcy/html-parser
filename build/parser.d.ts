@@ -1,20 +1,46 @@
-import { HtmlNode } from "./nodes/node.js";
-import { HtmlElement } from "./nodes/element.js";
-declare class HtmlParser {
-    #private;
-    private code;
-    private currentNode;
-    rawHtml: string;
-    tree: HtmlElement;
-    nodes: HtmlNode[];
-    constructor(rawHtml: string);
-    pushNode: () => void;
-    nodeInGroupHandler: (char: string) => void;
-    textNodeWithEndSeqHandler: (char: string, i: number) => void;
-    openAngleBracketHandler: () => void;
-    closeAngleBracketHandler: () => void;
-    parse: () => void;
-    buildTree: () => void;
-    buildHtml: () => string;
+import { ICharGroup, ICharGroupName, IGroupUsageList, IGroupsConfig } from "./types.js";
+declare class Node {
+    parent: Container;
+    id: number;
+    constructor(parent: Container);
+    isRoot(): boolean;
+    isText(): this is Text;
+    isGroup(): this is Group;
+    isContainer(): this is Container;
+    static lastId: number;
 }
-export { HtmlParser };
+declare class Text extends Node {
+    content: string;
+    addChar(char: string): void;
+}
+declare class Container extends Node {
+    childrens: Node[];
+}
+declare class Group extends Container {
+    chars: ICharGroup;
+    groupName: ICharGroupName;
+    closed: boolean;
+    includes: IGroupUsageList;
+    constructor(parent: Container, groupName: ICharGroupName, includes?: IGroupUsageList);
+    private get openChars();
+    private get closeChars();
+    isCharsGroup(): this is Group;
+    toString(): string;
+}
+export declare class Parser {
+    tree: Container;
+    raw: string;
+    config: IGroupsConfig;
+    nodes: Node[];
+    private head;
+    private i;
+    constructor(raw: string, config: IGroupsConfig);
+    private get char();
+    private openGroup;
+    private closeGroup;
+    private closeGroupHandler;
+    private openGroupHandler;
+    private textHandler;
+    private parse;
+}
+export {};

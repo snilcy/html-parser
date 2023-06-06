@@ -41,17 +41,19 @@ export interface ICharToGroup {
   close: ICharToGroupSection;
 }
 
-export interface ICharGroupsStartMap {
-  [groupName: ICharGroupName]: ICharGroup;
-}
-
-export interface IGroupUsageList {
+export interface ICharGroupUsageList {
   [groupName: ICharGroupName]: true;
 }
 
-export interface IGroupsConfig {
+export interface ICharGroupConfig {
   groups: {
-    [groupName: ICharGroupName]: IGroupUsageList;
+    [groupName: ICharGroupName]: ICharGroupUsageList;
   };
-  root: IGroupUsageList;
+  root: ICharGroupUsageList;
+}
+
+export interface ICharGroupMatch {
+  matchs: ICharGroupUsageList;
+  longest?: ICharGroupName;
+  length: number;
 }

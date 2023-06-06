@@ -27,9 +27,15 @@ class Text extends Node {
     addChar(char) {
         this.content += char;
     }
+    print() {
+        return this.content;
+    }
 }
 class Container extends Node {
     childrens = [];
+    print() {
+        return this.childrens.map((children) => children.print());
+    }
 }
 class Group extends Container {
     chars;
@@ -51,15 +57,8 @@ class Group extends Container {
     isCharsGroup() {
         return Boolean(this.groupName);
     }
-    toString() {
-        return [
-            `${this.id}${this.openChars}`,
-            // this.childrens.map((str) => `${"_".repeat(this.deep) + str}`).join(""),
-            `${this.id}${this.closeChars}`,
-        ].join("\n");
-    }
 }
-export class GroupBuilder {
+export class Parser {
     tree = new Container(null);
     raw = "";
     config;
@@ -97,7 +96,7 @@ export class GroupBuilder {
         if (!groupName)
             return false;
         const parent = this.head.isText() ? this.head.parent : this.head;
-        log.info("closeGroupHandler", this.char, groupName, parent);
+        // log.info("closeGroupHandler", this.char, groupName, parent);
         if (parent.isGroup() && parent.groupName === groupName) {
             this.closeGroup(parent);
             return true;
