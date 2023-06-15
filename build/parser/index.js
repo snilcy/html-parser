@@ -1,62 +1,13 @@
-import { logger } from "./logger.js";
-import { Char, CharGroups, CharToGroup } from "./const.js";
-const log = logger.ns("GroupBuiler");
-class Node {
-    parent;
-    id;
-    constructor(parent) {
-        this.parent = parent;
-        this.id = Node.lastId++;
-    }
-    isRoot() {
-        return !this.parent;
-    }
-    isText() {
-        return this instanceof Text;
-    }
-    isGroup() {
-        return this instanceof Group;
-    }
-    isContainer() {
-        return this instanceof Container;
-    }
-    static lastId = 0;
-}
-class Text extends Node {
-    content = "";
-    addChar(char) {
-        // log.info("addChar", char, this.char);
-        this.content += char;
-    }
-}
-class Container extends Node {
-    childrens = [];
-}
-class Group extends Container {
-    chars;
-    groupName;
-    closed = false;
-    includes;
-    constructor(parent, groupName, includes = {}) {
-        super(parent);
-        this.groupName = groupName;
-        this.includes = includes;
-        this.chars = CharGroups[groupName];
-    }
-    get openChars() {
-        return this.chars[0];
-    }
-    get closeChars() {
-        return this.chars[1];
-    }
-    isCharsGroup() {
-        return Boolean(this.groupName);
-    }
-}
+import { logger as log } from "../logger.js";
+import { Char } from "../const.js";
+import { CharToGroup } from "./const.js";
+import { Container } from "./container.js";
+import { Group } from "./group.js";
+import { Text } from "./text.js";
 export class Parser {
-    tree = new Container(null);
-    raw = "";
+    raw;
     config;
+    tree = new Container(null);
     nodes = [this.tree];
     head = this.tree;
     i = 0;
@@ -64,8 +15,18 @@ export class Parser {
         this.raw = raw;
         this.config = config;
         this.parse();
-        // log.debug("StartChartToGroup", StartChartToGroup);
-        // log.debug("config", config);
+    }
+    isRoot(target) {
+        return !target.parent;
+    }
+    isText(target) {
+        return target instanceof Text;
+    }
+    isGroup(target) {
+        return target instanceof Group;
+    }
+    isContainer(target) {
+        return target instanceof Container;
     }
     get prevChar() {
         return this.raw[this.i - 1];
@@ -73,31 +34,18 @@ export class Parser {
     get char() {
         return this.raw[this.i];
     }
-    openGroup(groupName) {
-        const parent = this.head.isText() ? this.head.parent : this.head;
-        if (!parent.isContainer())
-            return;
-        const group = new Group(parent, groupName, this.config.groups[groupName]);
-        this.shiftIterator(group.openChars);
-        parent.childrens.push(group);
-        group.parent = parent;
-        this.head = group;
-        this.nodes.push(group);
-    }
     closeGroup(group) {
-        // const node = new Node(group.parent);
         group.closed = true;
         this.shiftIterator(group.closeChars);
-        // group.parent.childrens.push(node);
         this.head = group.parent;
     }
     closeGroupHandler() {
         const groups = this.getGroupNameMatchs(CharToGroup.close);
         if (!groups.length)
             return false;
-        const parent = this.head.isText() ? this.head.parent : this.head;
+        const parent = this.isText(this.head) ? this.head.parent : this.head;
         // log.info("closeGroupHandler", this.char, groups, parent);
-        if (parent.isGroup() && groups.matchs[parent.groupName]) {
+        if (this.isGroup(parent) && groups.matchs[parent.groupName]) {
             this.closeGroup(parent);
             return true;
         }
@@ -132,13 +80,25 @@ export class Parser {
         }
         return result;
     }
+    openGroup(groupName) {
+        const parent = this.isText(this.head) ? this.head.parent : this.head;
+        if (!this.isContainer(parent))
+            return;
+        const groupConfig = this.config.groups[groupName];
+        const group = new Group(parent, groupName, groupConfig);
+        parent.childrens.push(group);
+        group.parent = parent;
+        this.shiftIterator(group.openChars);
+        this.head = group;
+        this.nodes.push(group);
+    }
     openGroupHandler() {
         const groups = this.getGroupNameMatchs(CharToGroup.open);
         if (!groups.longest)
             return false;
-        const parent = this.head.isText() ? this.head.parent : this.head;
-        if (parent.isGroup()) {
-            if (parent.includes[groups.longest]) {
+        const parent = this.isText(this.head) ? this.head.parent : this.head;
+        if (this.isGroup(parent)) {
+            if (parent.includes(groups.longest)) {
                 this.openGroup(groups.longest);
                 return true;
             }
@@ -146,7 +106,7 @@ export class Parser {
                 return false;
             }
         }
-        if (parent.isRoot()) {
+        if (this.isRoot(parent)) {
             if (this.config.root[groups.longest]) {
                 this.openGroup(groups.longest);
                 return true;
@@ -155,15 +115,20 @@ export class Parser {
         return false;
     }
     textHandler() {
-        if (!this.head.isText()) {
-            const parent = this.head.isContainer() ? this.head : this.head.parent;
+        if (this.isContainer(this.head)) {
+            const parent = this.head;
             const text = new Text(parent);
             parent.childrens.push(text);
             this.nodes.push(text);
             this.head = text;
         }
-        if (this.head.isText()) {
+        if (this.isText(this.head)) {
             this.head.addChar(this.char);
+        }
+    }
+    listHandler() {
+        if (this.isGroup(this.head)) {
+            log.info(this.head.groupName, this.char);
         }
         return false;
     }
@@ -173,8 +138,10 @@ export class Parser {
                 continue;
             if (this.openGroupHandler())
                 continue;
-            if (this.textHandler())
+            if (this.listHandler())
                 continue;
+            this.textHandler();
         }
     }
 }
+//# sourceMappingURL=index.js.map

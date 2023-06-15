@@ -1,5 +1,5 @@
 import { last, lastIndex, updateById } from "@snilcy/cake";
-import { Char } from "./const.js";
+import { Char } from "../const.js";
 import { ICodePosition } from "./types.js";
 
 class Code {

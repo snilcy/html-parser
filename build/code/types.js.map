@@ -1,0 +1,1 @@
+{"version":3,"file":"types.js","sourceRoot":"","sources":["../../src/code/types.ts"],"names":[],"mappings":"","sourcesContent":["export interface ICodePosition {\n  line: number;\n  col: number;\n}\n\nexport interface ICodeRange {\n  start: ICodePosition;\n  end: ICodePosition;\n}\n\n\n\n"]}

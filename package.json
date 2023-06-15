@@ -5,9 +5,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "watch": "tsc --watch",
-    "build": "rm -rf ./build/ && tsc --project tsconfig.production.json",
-    "test": "nodemon ./test/index.js"
+    "clean": "rm -rf ./build/",
+    "tsc": "npm run clean && tsc --watch",
+    "build": "tsc --project tsconfig.production.json --clean --build",
+    "test": "nodemon -- --enable-source-maps ./test/index.js"
   },
   "keywords": [],
   "author": "",
@@ -20,11 +21,12 @@
     "@typescript-eslint/parser": "^5.57.0",
     "eslint": "^8.37.0",
     "eslint-plugin-prettier": "^4.2.1",
-    "nodemon": "^2.0.22",
-    "typescript": "^5.0.4"
+    "typescript": "^5.0.4",
+    "nodemon": "^2.0.22"
   },
   "dependencies": {
-    "@snilcy/logger": "snilcy/logger"
+    "@snilcy/logger": "snilcy/logger",
+    "source-map-support": "^0.5.21"
   },
   "engines": {
     "node": ">=18"

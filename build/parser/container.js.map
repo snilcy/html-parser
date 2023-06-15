@@ -1,0 +1,1 @@
+{"version":3,"file":"container.js","sourceRoot":"","sources":["../../src/parser/container.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,WAAW,CAAC;AAEjC,MAAM,OAAO,SAAU,SAAQ,IAAI;IACjC,SAAS,GAAW,EAAE,CAAC;CACxB","sourcesContent":["import { Node } from \"./node.js\";\n\nexport class Container extends Node {\n  childrens: Node[] = [];\n}\n"]}

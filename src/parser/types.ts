@@ -1,27 +1,3 @@
-export interface ICodePosition {
-  line: number;
-  col: number;
-}
-
-export interface ICodeRange {
-  start: ICodePosition;
-  end: ICodePosition;
-}
-
-export interface IGroup {
-  char: string;
-  content: string;
-}
-
-export interface IListAttr {
-  name: string;
-  value: string;
-}
-
-export interface IObjAttr {
-  [keyof: string]: string;
-}
-
 export type ICharGroupName = string;
 export type ICharGroup = [string, string];
 
@@ -45,9 +21,18 @@ export interface ICharGroupUsageList {
   [groupName: ICharGroupName]: true;
 }
 
+export interface IListConfig {
+  [char: string]: boolean | IListConfig;
+}
+
+export interface ICharGroupItemConfig {
+  includes?: ICharGroupUsageList;
+  list?: IListConfig;
+}
+
 export interface ICharGroupConfig {
   groups: {
-    [groupName: ICharGroupName]: ICharGroupUsageList;
+    [groupName: ICharGroupName]: ICharGroupItemConfig;
   };
   root: ICharGroupUsageList;
 }

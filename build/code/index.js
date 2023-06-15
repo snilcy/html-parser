@@ -1,5 +1,5 @@
 import { last, lastIndex, updateById } from "@snilcy/cake";
-import { Char } from "./const.js";
+import { Char } from "../const.js";
 class Code {
     lines = [""];
     addToLastLine = (char) => {
@@ -30,3 +30,4 @@ class Code {
     };
 }
 export { Code };
+//# sourceMappingURL=index.js.map
